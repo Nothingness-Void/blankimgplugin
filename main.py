@@ -1,59 +1,77 @@
-from pkg.plugin.context import register, handler, llm_func, BasePlugin, APIHost, EventContext
-from pkg.plugin.events import *  # 导入事件类
+# coding:utf-8
+from pkg.plugin.models import *
+from pkg.plugin.host import EventContext, PluginHost
+import logging
 
 
-# 注册插件
-@register(name="BlankImageHandler", description="处理只发送图片的情况，自动添加解读提示", version="0.3", author="Nothingness-Void")
-class BlankImagePlugin(BasePlugin):
+class ImageProcessor:
+    """图片消息处理器"""
+    def __init__(self):
+        self.default_prompt = "解读一下这张图片"
+    
+    def process(self, event: EventContext) -> dict:
+        """处理图片消息
+        
+        Args:
+            event: 事件上下文
+            
+        Returns:
+            dict: 处理结果
+        """
+        try:
+            # 检查是否是纯图片消息
+            if not self._is_image_only_message(event):
+                return {"status": 0, "message": "不是纯图片消息"}
+            
+            # 处理消息
+            return {
+                "status": 200,
+                "content": {
+                    "prompt": self.default_prompt,
+                    "image_count": len(event.event.image_list)
+                }
+            }
+        except Exception as e:
+            logging.error(f"处理图片消息时出错: {str(e)}")
+            return {"status": 500, "message": f"处理失败: {str(e)}"}
 
-    # 插件加载时触发
-    def __init__(self, host: APIHost):
-        self.default_prompt = "解读一下这张图片"  # 可以在这里设置默认的提示语
-        self.host = host
+    def _is_image_only_message(self, event: EventContext) -> bool:
+        """检查是否为纯图片消息"""
+        return (not event.event.text_message or event.event.text_message.strip() == "") and event.event.image_list
 
-    # 异步初始化
-    async def initialize(self):
-        pass
 
-    async def _handle_image_message(self, ctx: EventContext, is_group=False):
-        """统一处理图片消息的方法"""
-        if ctx.event.image_list and (not ctx.event.text_message or ctx.event.text_message.strip() == ""):
-            try:
-                # 创建新的消息内容
-                ctx.event.message_chain = [
-                    {
-                        "type": "text",
-                        "content": self.default_prompt
-                    }
-                ]
-                # 确保图片信息被保留
-                for img in ctx.event.image_list:
-                    ctx.event.message_chain.append({
-                        "type": "image",
-                        "content": img
-                    })
-                
-                # 更新文本消息
-                ctx.event.text_message = self.default_prompt
-                
-                # 记录日志
-                source = f"群 {ctx.event.group_id} 中的用户 {ctx.event.sender_id}" if is_group else f"用户 {ctx.event.sender_id}"
-                self.host.logger.info(f"为{source}的图片添加解读提示: {self.default_prompt}")
-                
-            except Exception as e:
-                self.host.logger.error(f"处理图片消息时出错: {str(e)}")
-                return
+@register(name="BlankImageHandler", 
+         description="处理只发送图片的情况，自动添加解读提示", 
+         version="0.5", 
+         author="Nothingness-Void")
+class BlankImagePlugin(Plugin):
+    """处理纯图片消息的插件"""
 
-    # 当收到个人消息时触发
-    @handler(PersonNormalMessageReceived)
-    async def person_normal_message_received(self, ctx: EventContext):
-        await self._handle_image_message(ctx, is_group=False)
+    def __init__(self, plugin_host: PluginHost):
+        self.processor = ImageProcessor()
+        self.logger = logging.getLogger(__name__)
 
-    # 当收到群消息时触发
-    @handler(GroupNormalMessageReceived)
-    async def group_normal_message_received(self, ctx: EventContext):
-        await self._handle_image_message(ctx, is_group=True)
+    @on(NormalMessageReceived)
+    def handle_message(self, event: EventContext, **kwargs):
+        """处理接收到的消息"""
+        # 处理消息
+        result = self.processor.process(event)
+        
+        # 检查处理结果
+        if result["status"] == 200:
+            # 添加提示文本
+            event.event.text_message = result["content"]["prompt"]
+            self.logger.debug(
+                f"已处理图片消息 - 图片数量: {result['content']['image_count']}, "
+                f"添加提示: {result['content']['prompt']}"
+            )
+        elif result["status"] == 0:
+            # 不是纯图片消息，忽略
+            pass
+        else:
+            # 处理失败
+            self.logger.error(f"处理图片消息失败: {result['message']}")
 
-    # 插件卸载时触发
     def __del__(self):
+        """插件卸载时触发"""
         pass
