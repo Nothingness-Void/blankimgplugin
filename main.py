@@ -1,22 +1,53 @@
-# coding:utf-8
-from pkg.plugin.models import *
-from pkg.plugin.host import EventContext, PluginHost
+from pkg.plugin.context import register, handler, llm_func, BasePlugin, APIHost, EventContext
+from pkg.plugin.events import *  # 导入事件类
 
 
-@register(name="BlankImageHandler", description="处理只发送图片的情况，自动添加解读提示", version="0.5", author="Nothingness-Void")
-class BlankImagePlugin(Plugin):
+"""
+在收到私聊或群聊消息"hello"时，回复"hello, <发送者id>!"或"hello, everyone!"
+"""
+
+
+# 注册插件
+@register(name="Hello", description="hello world", version="0.1", author="RockChinQ")
+class HelloPlugin(BasePlugin):
 
     # 插件加载时触发
-    def __init__(self, plugin_host: PluginHost):
-        self.default_prompt = "解读一下这张图片"
+    def __init__(self, host: APIHost):
+        pass
 
-    @on(NormalMessageReceived)
-    def handle_message(self, event: EventContext, **kwargs):
-        # 检查是否是纯图片消息（没有文本但有图片）
-        if (not event.event.text_message or event.event.text_message.strip() == "") and event.event.image_list:
-            # 添加默认提示文本
-            event.event.text_message = self.default_prompt
-            self.ap.logger.debug(f"为消息添加解读提示: {self.default_prompt}")
+    # 异步初始化
+    async def initialize(self):
+        pass
+
+    # 当收到个人消息时触发
+    @handler(PersonNormalMessageReceived)
+    async def person_normal_message_received(self, ctx: EventContext):
+        msg = ctx.event.text_message  # 这里的 event 即为 PersonNormalMessageReceived 的对象
+        if msg == "hello":  # 如果消息为hello
+
+            # 输出调试信息
+            self.ap.logger.debug("hello, {}".format(ctx.event.sender_id))
+
+            # 回复消息 "hello, <发送者id>!"
+            ctx.add_return("reply", ["hello, {}!".format(ctx.event.sender_id)])
+
+            # 阻止该事件默认行为（向接口获取回复）
+            ctx.prevent_default()
+
+    # 当收到群消息时触发
+    @handler(GroupNormalMessageReceived)
+    async def group_normal_message_received(self, ctx: EventContext):
+        msg = ctx.event.text_message  # 这里的 event 即为 GroupNormalMessageReceived 的对象
+        if msg == "hello":  # 如果消息为hello
+
+            # 输出调试信息
+            self.ap.logger.debug("hello, {}".format(ctx.event.sender_id))
+
+            # 回复消息 "hello, everyone!"
+            ctx.add_return("reply", ["hello, everyone!"])
+
+            # 阻止该事件默认行为（向接口获取回复）
+            ctx.prevent_default()
 
     # 插件卸载时触发
     def __del__(self):
