@@ -3,7 +3,7 @@ from pkg.plugin.events import *  # 导入事件类
 
 
 # 注册插件
-@register(name="BlankImageHandler", description="处理只发送图片的情况，自动添加解读提示", version="0.1", author="Nothingness-Void")
+@register(name="BlankImageHandler", description="处理手机只能发送图片的情况，确保AI正常响应", version="0.1", author="Nothingness-Void")
 class BlankImagePlugin(BasePlugin):
 
     # 插件加载时触发
