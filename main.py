@@ -3,12 +3,12 @@ from pkg.plugin.events import *  # 导入事件类
 
 
 # 注册插件
-@register(name="Hello", description="hello world", version="0.1", author="RockChinQ")
-class MyPlugin(BasePlugin):
+@register(name="BlankImageHandler", description="处理只发送图片的情况，自动添加解读提示", version="0.1", author="Nothingness-Void")
+class BlankImagePlugin(BasePlugin):
 
     # 插件加载时触发
     def __init__(self, host: APIHost):
-        pass
+        self.default_prompt = "解读一下这张图片"  # 可以在这里设置默认的提示语
 
     # 异步初始化
     async def initialize(self):
@@ -17,32 +17,20 @@ class MyPlugin(BasePlugin):
     # 当收到个人消息时触发
     @handler(PersonNormalMessageReceived)
     async def person_normal_message_received(self, ctx: EventContext):
-        msg = ctx.event.text_message  # 这里的 event 即为 PersonNormalMessageReceived 的对象
-        if msg == "hello":  # 如果消息为hello
-
-            # 输出调试信息
-            self.ap.logger.debug("hello, {}".format(ctx.event.sender_id))
-
-            # 回复消息 "hello, <发送者id>!"
-            ctx.add_return("reply", ["hello, {}!".format(ctx.event.sender_id)])
-
-            # 阻止该事件默认行为（向接口获取回复）
-            ctx.prevent_default()
+        # 检查消息是否只包含图片
+        if (not ctx.event.text_message or ctx.event.text_message.strip() == "") and ctx.event.image_list:
+            # 添加默认的解读提示
+            ctx.event.text_message = self.default_prompt
+            self.ap.logger.debug(f"为用户 {ctx.event.sender_id} 的图片添加解读提示")
 
     # 当收到群消息时触发
     @handler(GroupNormalMessageReceived)
     async def group_normal_message_received(self, ctx: EventContext):
-        msg = ctx.event.text_message  # 这里的 event 即为 GroupNormalMessageReceived 的对象
-        if msg == "hello":  # 如果消息为hello
-
-            # 输出调试信息
-            self.ap.logger.debug("hello, {}".format(ctx.event.sender_id))
-
-            # 回复消息 "hello, everyone!"
-            ctx.add_return("reply", ["hello, everyone!"])
-
-            # 阻止该事件默认行为（向接口获取回复）
-            ctx.prevent_default()
+        # 检查消息是否只包含图片
+        if (not ctx.event.text_message or ctx.event.text_message.strip() == "") and ctx.event.image_list:
+            # 添加默认的解读提示
+            ctx.event.text_message = self.default_prompt
+            self.ap.logger.debug(f"为群 {ctx.event.group_id} 中用户 {ctx.event.sender_id} 的图片添加解读提示")
 
     # 插件卸载时触发
     def __del__(self):
